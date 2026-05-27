@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Executive Quarterly Sales Dashboard</title>
+<script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+<style>
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+
+:root{
+  --bg:#0d1117;
+  --surface:#161b22;
+  --surface2:#1c2230;
+  --border:#21293a;
+  --accent:#3b82f6;
+  --accent2:#10b981;
+  --accent3:#f59e0b;
+  --danger:#ef4444;
+  --text:#e6edf3;
+  --muted:#7d8590;
+}
+
+*{box-sizing:border-box;margin:0;padding:0;}
+
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'DM Sans',sans-serif;
+  padding:24px;
+  min-height:100vh;
+}
+
+header{
+  text-align:center;
+  margin-bottom:28px;
+}
+
+h1{
+  font-size:26px;
+  font-weight:700;
+  letter-spacing:-.3px;
+  color:var(--text);
+}
+
+header p{
+  color:var(--muted);
+  font-size:13px;
+  margin-top:4px;
+}
+
+/* FILTERS */
+.filters{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:12px;
+  margin-bottom:24px;
+}
+
+.filters select{
+  background:var(--surface);
+  color:var(--text);
+  border:1px solid var(--border);
+  padding:12px 16px;
+  border-radius:10px;
+  font-size:14px;
+  font-family:'DM Sans',sans-serif;
+  outline:none;
+  cursor:pointer;
+  transition:border-color .2s;
+}
+
+.filters select:hover,
+.filters select:focus{
+  border-color:var(--accent);
+}
+
+/* KPI CARDS */
+.cards{
+  display:grid;
+  grid-template-columns:repeat(6,1fr);
+  gap:12px;
+  margin-bottom:20px;
+}
+
+.card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:16px;
+  position:relative;
+  overflow:hidden;
+}
+
+.card::before{
+  content:'';
+  position:absolute;
+  top:0;left:0;right:0;
+  height:3px;
+  background:var(--accent);
+  border-radius:12px 12px 0 0;
+}
+
+.card.green::before{ background:var(--accent2); }
+.card.amber::before{ background:var(--accent3); }
+.card.red::before{ background:var(--danger); }
+
+.card label{
+  color:var(--muted);
+  font-size:11px;
+  font-weight:500;
+  letter-spacing:.5px;
+  text-transform:uppercase;
+  display:block;
+  margin-bottom:8px;
+}
+
+.card h2{
+  font-size:22px;
+  font-weight:700;
+  font-family:'DM Mono',monospace;
+  color:var(--text);
+  line-height:1;
+}
+
+.card .sub{
+  font-size:11px;
+  color:var(--muted);
+  margin-top:4px;
+}
+
+/* INSIGHTS — compact horizontal strip */
+.insights-strip{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:16px 20px;
+  margin-bottom:20px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px 24px;
+  align-items:center;
+}
+
+.insights-strip .ins-title{
+  font-size:12px;
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:.6px;
+  color:var(--muted);
+  width:100%;
+  margin-bottom:2px;
+}
+
+.insight-item{
+  font-size:13px;
+  color:var(--muted);
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+
+.insight-item b{
+  color:var(--text);
+  font-family:'DM Mono',monospace;
+  font-weight:500;
+}
+
+.insight-item .dot{
+  width:6px;height:6px;
+  border-radius:50%;
+  background:var(--accent);
+  flex-shrink:0;
+}
+
+.insight-item.pos b{ color:#10b981; }
+.insight-item.neg b{ color:#ef4444; }
+
+/* GRID */
+.grid2{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:16px;
+  margin-bottom:16px;
+}
+
+.panel{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:16px;
+  overflow:hidden;
+}
+
+.panel-title{
+  font-size:12px;
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:.6px;
+  color:var(--muted);
+  margin-bottom:8px;
+}
+
+/* CHARTS */
+#chartOrderType,
+#chartOnline,
+#chartThirdParty,
+#chartDiscount,
+#chartTicket,
+#chartTrend{
+  width:100%;
+  height:360px;
+}
+
+#chartRanking{
+  width:100%;
+  height:700px;
+}
+
+@media(max-width:1200px){
+  .cards{ grid-template-columns:repeat(3,1fr); }
+}
+
+@media(max-width:800px){
+  .filters,.cards,.grid2{ grid-template-columns:1fr; }
+}
+
+</style>
+</head>
+
+<body>
+
+<header>
+  <h1>Executive Quarterly Sales Dashboard</h1>
+  <p>Performance vs Brand Average</p>
+</header>
+
+<!-- FILTERS -->
+<section class="filters">
+  <select id="store"></select>
+  <select id="year"></select>
+  <select id="quarter"></select>
+</section>
+
+<!-- KPI CARDS -->
+<section class="cards">
+
+  <div class="card" id="cardSales">
+    <label>Total Sales</label>
+    <h2 id="kpiSales">$0</h2>
+    <div class="sub" id="kpiSalesSub"></div>
+  </div>
+
+  <div class="card" id="cardVsAvg">
+    <label>Sales vs Brand Avg</label>
+    <h2 id="kpiVsAvg">0%</h2>
+    <div class="sub" id="kpiVsAvgSub"></div>
+  </div>
+
+  <div class="card" id="cardOrdersVs">
+    <label>Orders vs Brand Avg</label>
+    <h2 id="kpiOrdersVs">0%</h2>
+    <div class="sub" id="kpiOrdersVsSub"></div>
+  </div>
+
+  <div class="card" id="cardTicket">
+    <label>Avg Ticket</label>
+    <h2 id="kpiTicket">$0.00</h2>
+    <div class="sub" id="kpiTicketSub"></div>
+  </div>
+
+  <div class="card" id="cardOnline">
+    <label>Online Mix vs Brand</label>
+    <h2 id="kpiOnline">0%</h2>
+    <div class="sub" id="kpiOnlineSub"></div>
+  </div>
+
+  <div class="card" id="cardThird">
+    <label>3rd Party vs Brand</label>
+    <h2 id="kpiThird">0%</h2>
+    <div class="sub" id="kpiThirdSub"></div>
+  </div>
+
+</section>
+
+<!-- INSIGHTS STRIP -->
+<section class="insights-strip" id="insightsStrip">
+  <div class="ins-title">Quick Insights</div>
+</section>
+
+<!-- ROW 1: Order Type % | Online Mix % vs Brand -->
+<section class="grid2">
+  <div class="panel">
+    <div class="panel-title">Sales by Order Type (% of Total)</div>
+    <div id="chartOrderType"></div>
+  </div>
+  <div class="panel">
+    <div class="panel-title">Online Mix % vs Brand Average</div>
+    <div id="chartOnline"></div>
+  </div>
+</section>
+
+<!-- ROW 2: 3rd Party % vs Brand | Discount -->
+<section class="grid2">
+  <div class="panel">
+    <div class="panel-title">3rd Party Mix % vs Brand Average</div>
+    <div id="chartThirdParty"></div>
+  </div>
+  <div class="panel">
+    <div class="panel-title">Discount Trend</div>
+    <div id="chartDiscount"></div>
+  </div>
+</section>
+
+<!-- ROW 3: Avg Ticket | Sales Trend -->
+<section class="grid2">
+  <div class="panel">
+    <div class="panel-title">Average Ticket Trend</div>
+    <div id="chartTicket"></div>
+  </div>
+  <div class="panel">
+    <div class="panel-title">Quarterly Sales Trend</div>
+    <div id="chartTrend"></div>
+  </div>
+</section>
+
+<!-- STORE RANKING -->
+<section class="panel" style="margin-top:16px;">
+  <div class="panel-title">Store Ranking by Total Sales</div>
+  <div id="chartRanking"></div>
+</section>
+
+<script>
+
+let raw = [];
+
+/* ==========================================
+   LOAD CSV
+========================================== */
+Papa.parse("quartersales_clean.csv",{
+  download:true,
+  header:true,
+  dynamicTyping:true,
+  complete:function(res){
+    raw = res.data.filter(r=>r.store);
+    raw.forEach(r=>{
+      r.store = String(r.store)
+        .replace(/Â/g,"")
+        .replace(/\u00A0/g," ")
+        .replace(/[^\x20-\x7E]/g,"")
+        .trim();
+    });
+    initFilters();
+    updateDashboard();
+  }
+});
+
+/* ==========================================
+   UTILITIES
+========================================== */
+function uniq(arr){ return ["All",...new Set(arr.filter(Boolean))]; }
+function num(v){ return Number(v)||0; }
+function sum(arr,col){ return arr.reduce((a,b)=>a+num(b[col]),0); }
+function avg(arr,col){ return arr.length ? sum(arr,col)/arr.length : 0; }
+
+function money(v){
+  return "$"+v.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+
+function percent(v,decimals=1){
+  return v.toFixed(decimals)+"%";
+}
+
+function pctSign(v){
+  return (v>=0?"+":"")+percent(v);
+}
+
+function periods(data){
+  return [...new Set(data.map(d=>d.period))];
+}
+
+function byPeriod(data,p,col){
+  return p.map(x=>sum(data.filter(r=>r.period===x),col));
+}
+
+function avgPeriod(data,p,col){
+  return p.map(x=>avg(data.filter(r=>r.period===x),col));
+}
+
+function layout(title){
+  return {
+    title:{text:title,font:{size:13,color:"#7d8590"},x:0,xanchor:"left"},
+    paper_bgcolor:"#161b22",
+    plot_bgcolor:"#161b22",
+    font:{color:"#e6edf3",family:"DM Sans,sans-serif",size:12},
+    margin:{t:36,l:60,r:30,b:50},
+    legend:{orientation:"h",y:-0.15,font:{size:11}},
+    xaxis:{gridcolor:"#21293a",linecolor:"#21293a"},
+    yaxis:{gridcolor:"#21293a",linecolor:"#21293a"}
+  };
+}
+
+/* ==========================================
+   FILTERS
+========================================== */
+function fillSelect(id,vals){
+  const el=document.getElementById(id);
+  el.innerHTML=vals.map(v=>`<option value="${v}">${v}</option>`).join("");
+}
+
+function initFilters(){
+  fillSelect("store",uniq(raw.map(d=>d.store)));
+  fillSelect("year",uniq(raw.map(d=>d.year)));
+  fillSelect("quarter",uniq(raw.map(d=>d.quarter_label)));
+  ["store","year","quarter"].forEach(id=>{
+    document.getElementById(id).addEventListener("change",updateDashboard);
+  });
+}
+
+function filteredData(){
+  const s=store.value, y=year.value, q=quarter.value;
+  return raw.filter(d=>
+    (s==="All"||d.store===s)&&
+    (y==="All"||String(d.year)===String(y))&&
+    (q==="All"||d.quarter_label===q)
+  );
+}
+
+/* ==========================================
+   CARD COLOR HELPER
+========================================== */
+function colorCard(id, val){
+  const el=document.getElementById(id);
+  el.classList.remove("green","amber","red");
+  if(val>5) el.classList.add("green");
+  else if(val<-5) el.classList.add("red");
+  else if(val!==null) el.classList.add("amber");
+}
+
+/* ==========================================
+   INSIGHTS STRIP
+========================================== */
+function buildInsights(d, brandAvgSales, brandAvgTicket){
+  const sales=sum(d,"net_sales_total");
+  const deliveryPct=sales?sum(d,"delivery_sales")/sales*100:0;
+  const pickupPct=sales?sum(d,"pick_up_sales")/sales*100:0;
+  const tgoPct=sales?sum(d,"to_go_sales")/sales*100:0;
+  const dinePct=sales?sum(d,"dine_in_sales")/sales*100:0;
+  const onlinePct=sales?sum(d,"web_app_net_sales_online")/sales*100:0;
+  const avgTicket=avg(d,"ticket_average");
+  const salesVsAvg=brandAvgSales?((sales-brandAvgSales)/brandAvgSales)*100:0;
+  const ticketVsAvg=brandAvgTicket?((avgTicket-brandAvgTicket)/brandAvgTicket)*100:0;
+
+  function ins(label,val,suffix,posGood=true){
+    const cls=posGood?(val>=0?"pos":"neg"):(val>=0?"neg":"pos");
+    return `<div class="insight-item ${cls}">
+      <span class="dot"></span>
+      ${label}: <b>${val>=0?"+":""}${val.toFixed(1)}${suffix}</b>
+    </div>`;
+  }
+
+  function insStatic(label,val,suffix){
+    return `<div class="insight-item">
+      <span class="dot"></span>
+      ${label}: <b>${val.toFixed(1)}${suffix}</b>
+    </div>`;
+  }
+
+  document.getElementById("insightsStrip").innerHTML=`
+    <div class="ins-title">Quick Insights</div>
+    ${ins("Sales vs Brand Avg",salesVsAvg,"%")}
+    ${insStatic("Delivery",deliveryPct,"%")}
+    ${insStatic("Pick Up",pickupPct,"%")}
+    ${insStatic("Dine In",dinePct,"%")}
+    ${insStatic("To Go",tgoPct,"%")}
+    ${insStatic("Online Mix",onlinePct,"%")}
+    ${ins("Avg Ticket vs Brand",ticketVsAvg,"%")}
+  `;
+}
+
+/* ==========================================
+   MAIN DASHBOARD
+========================================== */
+function updateDashboard(){
+
+  const d=filteredData();
+  const p=periods(d);
+
+  const totalSales=sum(d,"net_sales_total");
+  const totalOrders=sum(d,"number_orders_total");
+  const onlineSales=sum(d,"web_app_net_sales_online");
+  const thirdSales=sum(d,"x3rd_party_sales_total");
+  const avgTicketStore=avg(d,"ticket_average");
+
+  /* BRAND AVERAGES (per store) */
+  const stores=[...new Set(raw.map(r=>r.store))];
+  const nStores=stores.length||1;
+
+  const brandAvgSales=sum(raw,"net_sales_total")/nStores;
+  const brandAvgOrders=sum(raw,"number_orders_total")/nStores;
+  const brandAvgTicket=avg(raw,"ticket_average");
+
+  const brandOnlinePct=sum(raw,"net_sales_total")
+    ? sum(raw,"web_app_net_sales_online")/sum(raw,"net_sales_total")*100
+    : 0;
+
+  const brandThirdPct=sum(raw,"net_sales_total")
+    ? sum(raw,"x3rd_party_sales_total")/sum(raw,"net_sales_total")*100
+    : 0;
+
+  /* STORE MIX % */
+  const onlinePct=totalSales?onlineSales/totalSales*100:0;
+  const thirdPct=totalSales?thirdSales/totalSales*100:0;
+
+  /* VARIANCE vs BRAND AVERAGE */
+  const salesVsAvg=brandAvgSales?((totalSales-brandAvgSales)/brandAvgSales)*100:0;
+  const ordersVsAvg=brandAvgOrders?((totalOrders-brandAvgOrders)/brandAvgOrders)*100:0;
+  const onlineVsBrand=onlinePct-brandOnlinePct;
+  const thirdVsBrand=thirdPct-brandThirdPct;
+  const ticketVsBrand=brandAvgTicket?((avgTicketStore-brandAvgTicket)/brandAvgTicket)*100:0;
+
+  /* ── KPI CARDS ── */
+
+  // Total Sales card
+  kpiSales.textContent=money(totalSales);
+  document.getElementById("kpiSalesSub").textContent=
+    "Brand Avg: "+money(brandAvgSales);
+
+  // Sales vs Brand Avg
+  kpiVsAvg.textContent=pctSign(salesVsAvg);
+  document.getElementById("kpiVsAvgSub").textContent=
+    "Gap: "+money(totalSales-brandAvgSales);
+  colorCard("cardVsAvg",salesVsAvg);
+
+  // Orders vs Brand Avg
+  kpiOrdersVs.textContent=pctSign(ordersVsAvg);
+  document.getElementById("kpiOrdersVsSub").textContent=
+    "Store: "+(totalOrders|0)+" | Avg: "+Math.round(brandAvgOrders);
+  colorCard("cardOrdersVs",ordersVsAvg);
+
+  // Avg Ticket — always 2 decimal places via money()
+  kpiTicket.textContent=money(avgTicketStore);
+  document.getElementById("kpiTicketSub").textContent=
+    "Brand Avg: "+money(brandAvgTicket)+" ("+pctSign(ticketVsBrand)+")";
+  colorCard("cardTicket",ticketVsBrand);
+
+  // Online Mix vs Brand
+  kpiOnline.textContent=pctSign(onlineVsBrand);
+  document.getElementById("kpiOnlineSub").textContent=
+    "Store: "+percent(onlinePct)+" | Brand: "+percent(brandOnlinePct);
+  colorCard("cardOnline",onlineVsBrand);
+
+  // 3rd Party vs Brand
+  kpiThird.textContent=pctSign(thirdVsBrand);
+  document.getElementById("kpiThirdSub").textContent=
+    "Store: "+percent(thirdPct)+" | Brand: "+percent(brandThirdPct);
+  colorCard("cardThird",thirdVsBrand);
+
+  /* ── ORDER TYPE MIX — shown as % of total sales ── */
+  const delivS=sum(d,"delivery_sales");
+  const dineS=sum(d,"dine_in_sales");
+  const togoS=sum(d,"to_go_sales");
+  const pickS=sum(d,"pick_up_sales");
+
+  const orderTotal=delivS+dineS+togoS+pickS||1;
+
+  const orderLabels=["Delivery","Dine In","To Go","Pick Up"];
+  const orderPcts=[
+    delivS/orderTotal*100,
+    dineS/orderTotal*100,
+    togoS/orderTotal*100,
+    pickS/orderTotal*100
+  ];
+
+  // Donut with % labels
+  Plotly.newPlot("chartOrderType",[{
+    labels:orderLabels,
+    values:orderPcts,
+    type:"pie",
+    hole:.5,
+    textinfo:"label+percent",
+    hovertemplate:"%{label}<br>%{value:.1f}% of Sales<extra></extra>",
+    marker:{colors:["#3b82f6","#10b981","#f59e0b","#8b5cf6"]}
+  }],{
+    ...layout(""),
+    showlegend:true,
+    legend:{orientation:"h",y:-0.1},
+    annotations:[{
+      text:"Order Mix",
+      x:0.5,y:0.5,
+      showarrow:false,
+      font:{size:12,color:"#7d8590"}
+    }]
+  },{responsive:true});
+
+  /* ── ONLINE MIX % vs BRAND AVERAGE per period ── */
+  const onlineStore=[], onlineBrand=[];
+
+  p.forEach(x=>{
+    const rows=d.filter(r=>r.period===x);
+    const brandRows=raw.filter(r=>r.period===x);
+    const sSales=sum(rows,"net_sales_total");
+    const sOnline=sum(rows,"web_app_net_sales_online");
+    const bSales=sum(brandRows,"net_sales_total");
+    const bOnline=sum(brandRows,"web_app_net_sales_online");
+    onlineStore.push(sSales?sOnline/sSales*100:0);
+    onlineBrand.push(bSales?bOnline/bSales*100:0);
+  });
+
+  Plotly.newPlot("chartOnline",[
+    {
+      x:p,y:onlineStore,
+      type:"scatter",mode:"lines+markers",
+      name:"Store %",
+      line:{color:"#3b82f6",width:2},
+      marker:{size:6},
+      hovertemplate:"%{x}<br>Store: %{y:.1f}%<extra></extra>"
+    },
+    {
+      x:p,y:onlineBrand,
+      type:"scatter",mode:"lines+markers",
+      name:"Brand Avg %",
+      line:{color:"#7d8590",width:2,dash:"dot"},
+      marker:{size:5},
+      hovertemplate:"%{x}<br>Brand Avg: %{y:.1f}%<extra></extra>"
+    }
+  ],{
+    ...layout(""),
+    yaxis:{...layout("").yaxis,ticksuffix:"%",gridcolor:"#21293a"}
+  },{responsive:true});
+
+  /* ── 3RD PARTY MIX % vs BRAND AVERAGE ── */
+  const thirdStore=[], thirdBrand=[];
+
+  p.forEach(x=>{
+    const rows=d.filter(r=>r.period===x);
+    const brandRows=raw.filter(r=>r.period===x);
+    const sSales=sum(rows,"net_sales_total");
+    const sThird=sum(rows,"x3rd_party_sales_total");
+    const bSales=sum(brandRows,"net_sales_total");
+    const bThird=sum(brandRows,"x3rd_party_sales_total");
+    thirdStore.push(sSales?sThird/sSales*100:0);
+    thirdBrand.push(bSales?bThird/bSales*100:0);
+  });
+
+  Plotly.newPlot("chartThirdParty",[
+    {
+      x:p,y:thirdStore,
+      type:"scatter",mode:"lines+markers",
+      name:"Store %",
+      line:{color:"#f59e0b",width:2},
+      marker:{size:6},
+      hovertemplate:"%{x}<br>Store: %{y:.1f}%<extra></extra>"
+    },
+    {
+      x:p,y:thirdBrand,
+      type:"scatter",mode:"lines+markers",
+      name:"Brand Avg %",
+      line:{color:"#7d8590",width:2,dash:"dot"},
+      marker:{size:5},
+      hovertemplate:"%{x}<br>Brand Avg: %{y:.1f}%<extra></extra>"
+    }
+  ],{
+    ...layout(""),
+    yaxis:{...layout("").yaxis,ticksuffix:"%",gridcolor:"#21293a"}
+  },{responsive:true});
+
+  /* ── DISCOUNT TREND ── */
+  Plotly.newPlot("chartDiscount",[
+    {
+      x:p,
+      y:byPeriod(d,p,"discounts"),
+      type:"bar",
+      name:"Discount $",
+      marker:{color:"#ef4444"},
+      hovertemplate:"%{x}<br>$%{y:,.2f}<extra></extra>"
+    },
+    {
+      x:p,
+      y:avgPeriod(d,p,"percent_discount"),
+      type:"scatter",mode:"lines+markers",
+      yaxis:"y2",
+      name:"Discount %",
+      line:{color:"#f59e0b",width:2},
+      hovertemplate:"%{x}<br>%{y:.1f}%<extra></extra>"
+    }
+  ],{
+    ...layout(""),
+    yaxis:{gridcolor:"#21293a",linecolor:"#21293a"},
+    yaxis2:{overlaying:"y",side:"right",ticksuffix:"%",showgrid:false}
+  },{responsive:true});
+
+  /* ── AVG TICKET — 2 decimal places ── */
+  Plotly.newPlot("chartTicket",[
+    {
+      x:p,
+      y:avgPeriod(d,p,"ticket_average"),
+      type:"scatter",mode:"lines+markers",
+      fill:"tozeroy",
+      name:"Store Avg Ticket",
+      line:{color:"#10b981",width:2},
+      fillcolor:"rgba(16,185,129,0.1)",
+      hovertemplate:"%{x}<br>$%{y:.2f}<extra></extra>"
+    },
+    {
+      x:p,
+      y:p.map(x=>{
+        const br=raw.filter(r=>r.period===x);
+        return avg(br,"ticket_average");
+      }),
+      type:"scatter",mode:"lines+markers",
+      name:"Brand Avg",
+      line:{color:"#7d8590",width:2,dash:"dot"},
+      hovertemplate:"%{x}<br>Brand: $%{y:.2f}<extra></extra>"
+    }
+  ],{
+    ...layout(""),
+    yaxis:{...layout("").yaxis,tickprefix:"$",gridcolor:"#21293a"}
+  },{responsive:true});
+
+  /* ── QUARTERLY SALES TREND ── */
+  Plotly.newPlot("chartTrend",[
+    {
+      x:p,
+      y:byPeriod(d,p,"net_sales_total"),
+      type:"scatter",mode:"lines+markers",
+      fill:"tozeroy",
+      name:"Store Sales",
+      line:{color:"#3b82f6",width:2},
+      fillcolor:"rgba(59,130,246,0.1)",
+      hovertemplate:"%{x}<br>$%{y:,.2f}<extra></extra>"
+    },
+    {
+      x:p,
+      y:p.map(x=>{
+        const br=raw.filter(r=>r.period===x);
+        return avg(br,"net_sales_total");
+      }),
+      type:"scatter",mode:"lines+markers",
+      name:"Brand Avg",
+      line:{color:"#7d8590",width:2,dash:"dot"},
+      hovertemplate:"%{x}<br>Brand Avg: $%{y:,.2f}<extra></extra>"
+    }
+  ],{
+    ...layout(""),
+    yaxis:{...layout("").yaxis,tickprefix:"$",gridcolor:"#21293a"}
+  },{responsive:true});
+
+  /* ── STORE RANKING ── */
+  const totals={};
+  const orders={};
+
+  raw.forEach(r=>{
+    totals[r.store]=(totals[r.store]||0)+num(r.net_sales_total);
+    orders[r.store]=(orders[r.store]||0)+num(r.number_orders_total);
+  });
+
+  const grandTotal=Object.values(totals).reduce((a,b)=>a+b,0)||1;
+  const sorted=Object.entries(totals).sort((a,b)=>b[1]-a[1]);
+
+  Plotly.newPlot("chartRanking",[
+    {
+      x:sorted.map(x=>x[1]),
+      y:sorted.map((x,i)=>`#${i+1} ${x[0]}`),
+      type:"bar",
+      orientation:"h",
+      marker:{
+        color:sorted.map(x=>
+          x[1]>=brandAvgSales?"#10b981":"#3b82f6"
+        )
+      },
+      text:sorted.map(x=>
+        money(x[1])+" ("+percent(x[1]/grandTotal*100)+" of brand)"
+      ),
+      textposition:"outside",
+      hovertemplate:"%{y}<br>Sales: %{x:$,.2f}<extra></extra>"
+    }
+  ],{
+    ...layout(""),
+    margin:{l:180,r:220,t:40,b:50},
+    height:700,
+    xaxis:{
+      ...layout("").xaxis,
+      tickprefix:"$"
+    },
+    shapes:[{
+      type:"line",
+      x0:brandAvgSales,x1:brandAvgSales,
+      y0:-0.5,y1:sorted.length-0.5,
+      line:{color:"#f59e0b",width:2,dash:"dot"}
+    }],
+    annotations:[{
+      x:brandAvgSales,
+      y:sorted.length-0.5,
+      text:"Brand Avg",
+      showarrow:false,
+      font:{color:"#f59e0b",size:11},
+      yanchor:"bottom"
+    }]
+  },{responsive:true});
+
+  /* ── INSIGHTS STRIP ── */
+  buildInsights(d, brandAvgSales, brandAvgTicket);
+}
+
+</script>
+</body>
+</html>
